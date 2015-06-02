@@ -326,9 +326,10 @@ def dump_hashes(sysaddr, samaddr):
                     nthash = empty_nt
                 ## temporary fix to prevent UnicodeDecodeError backtraces 
                 ## however this can cause truncated user names as a result
-                name = get_user_name(user).encode('ascii', 'ignore')
-                yield "{0}:{1}:{2}:{3}:::".format(name, int(str(user.Name), 16),
-                                                  lmhash.encode('hex'), nthash.encode('hex'))
+                name = get_user_name(user).encode('utf8', 'ignore')
+                # we have to specify directional isolates in order to prevent LTR names from
+                # flipping the rest of the line or showing up at the end of the line
+                yield u"\u2068" + name + u"\u2069:" + str(int(str(user.Name), 16)) + ":" + lmhash.encode('hex') + ":" + nthash.encode('hex') + ":::"
     else:
         yield obj.NoneObject("Hbootkey is not valid")
 
