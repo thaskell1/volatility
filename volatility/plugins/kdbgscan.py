@@ -27,6 +27,7 @@ import volatility.addrspace as addrspace
 import volatility.registry as registry
 import volatility.utils as utils
 import volatility.exceptions as exceptions
+import volatility.win32 as win32
 
 class MultiStringFinderCheck(scan.ScannerCheck):
     """ Checks for multiple strings per page """
@@ -128,13 +129,27 @@ class KDBGScan(common.AbstractWindowsCommand):
 
             aspace = utils.load_as(self._config, astype = 'any')
 
+            suspects = []
             for offset in scanner.scan(aspace):
                 val = aspace.read(offset, maxlen + 0x10)
                 for l in proflens:
                     if val.find(proflens[l]) >= 0:
-                        kdbg = obj.Object("_KDDEBUGGER_DATA64", offset = offset, vm = aspace)
-                        yield l, kdbg
+                        suspects.append(l)
                         count += 1
+            for p in suspects:
+                self._config.update("PROFILE", p)
+                aspace = utils.load_as(self._config, astype = "any")
+                nspace = aspace
+                for m in win32.modules.lsmod(aspace):
+                    if m.BaseDllName == "ntoskrnl.exe":
+                        nspace = m.obj_vm
+                        break
+                for offset in scanner.scan(nspace):
+                    val = nspace.read(offset, maxlen + 0x10)
+                    if val.find(proflens[p]) >= 0:
+                        kdbg = obj.Object("_KDDEBUGGER_DATA64", offset = offset, vm = nspace)
+                        yield p, kdbg
+            self._config.update('PROFILE', origprofile)
 
         # only perform the special win8/2012 scan if we didn't find 
         # any others and if a virtual x64 address space is available 
